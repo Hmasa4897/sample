@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ゴミ拾いアプリ</title>
+    <style>
+        /* 以下はstyle.cssの内容 */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f7f7f7;
+            color: #333;
+        }
+
+        header {
+            background-color: #5276b9;
+            color: white;
+            text-align: center;
+            padding: 15px 0;
+        }
+
+        main {
+            width: 90%;
+            margin: 20px auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        #info {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        button {
+            background-color: #6e32b3;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            cursor: pointer;
+            border-radius: 5px;
+            transition: background-color 0.3s ease;
+        }
+
+        button:hover {
+            background-color: #6e32b3;
+        }
+
+        form {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        ul li {
+            background: #f9f9f9;
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+
+        #map {
+            width: 100%;
+            height: 600px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>仙台大志高校</h1>
+        <h1>ゴミ拾いアプリ</h1>
+        <h1>五輪地区を綺麗にしよう！</h1>
+    </header>
+    <main>
+        <div id="info">
+            <p>現在のポイント: <span id="points">0</span> ポイント</p>
+            <button onclick="redeemPoints()">ポイント交換</button>
+            <button onclick="resetAll()">履歴とポイントをリセット</button>
+        </div>
+        <form id="cleanupForm">
+            <h2>ゴミ拾いの記録</h2>
+                 <div id="map" ></div>
+                 <label for="location">場所:</label>
+                 <input type="text" id="location" placeholder="場所を入力" required>
+                 <button type="submit">記録する</button>
+        </form>
+        <ul id="cleanupList">
+            <h3>ゴミ拾いの履歴</h3>
+        </ul>
+    </main>
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <script>
+        // 以下はmain.jsの内容
+        let points = parseInt(localStorage.getItem('points')) || 0;
+        let cleanupHistory = JSON.parse(localStorage.getItem('cleanupHistory')) || [];
+
+        const pointsDisplay = document.getElementById('points');
+        const cleanupForm = document.getElementById('cleanupForm');
+        const cleanupList = document.getElementById('cleanupList');
+
+        pointsDisplay.textContent = points;
+        renderHistory();
+
+        function renderHistory() {
+            cleanupList.innerHTML = '';
+            cleanupHistory.forEach((item) => {
+                const listItem = document.createElement('li');
+                listItem.textContent = item;
+                cleanupList.appendChild(listItem);
+            });
+        }
+
+        cleanupForm.addEventListener('submit', function (event) {
+            event.preventDefault();
+            const locationInput = document.getElementById('location');
+            const location = locationInput.value;
+
+            if (location.trim()) {
+                cleanupHistory.push(location);
+                localStorage.setItem('cleanupHistory', JSON.stringify(cleanupHistory));
+                renderHistory();
+
+                points += 10;
+                pointsDisplay.textContent = points;
+                localStorage.setItem('points', points);
+
+                alert(`ゴミ拾いを記録しました！現在のポイント: ${points}ポイント`);
+                locationInput.value = '';
+            }
+        });
+
+        function redeemPoints() {
+            if (points >= 50) {
+                points -= 50;
+                pointsDisplay.textContent = points;
+                localStorage.setItem('points', points);
+                alert("50ポイントを特典に交換しました！");
+            } else {
+                alert("ポイントが足りません。もっとゴミ拾いを記録しましょう！");
+            }
+        }
+
+        function resetAll() {
+            if (confirm("すべての履歴とポイントをリセットしますか？")) {
+                points = 0;
+                cleanupHistory = [];
+                localStorage.removeItem('points');
+                localStorage.removeItem('cleanupHistory');
+                pointsDisplay.textContent = points;
+                renderHistory();
+                alert("履歴とポイントをリセットしました！");
+            }
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            const map = L.map('map').setView([38.268215, 140.869356], 13);
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(map);
+
+            let marker;
+
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        const lat = position.coords.latitude;
+                        const lng = position.coords.longitude;
+                        map.setView([lat, lng], 15);
+
+                        marker = L.marker([lat, lng]).addTo(map)
+                            .bindPopup("現在地")
+                            .openPopup();
+
+                        document.getElementById("location").value = `緯度: ${lat}, 経度: ${lng}`;
+                    },
+                    (error) => {
+                        alert("現在地を取得できません: " + error.message);
+                    }
+                );
+            } else {
+                alert("ブラウザが現在地取得をサポートしていません");
+            }
+
+            map.on('click', (e) => {
+                const { lat, lng } = e.latlng;
+
+                if (marker) {
+                    map.removeLayer(marker);
+                }
+
+                marker = L.marker([lat, lng]).addTo(map)
+                    .bindPopup(`選択した位置<br>緯度: ${lat.toFixed(6)}, 経度: ${lng.toFixed(6)}`)
+                    .openPopup();
+
+                document.getElementById("location").value = `緯度: ${lat.toFixed(6)}, 経度: ${lng.toFixed(6)}`;
+            });
+        });
+    </script>
+</body>
+</html>
